@@ -450,7 +450,8 @@ async function apiError(r){
 }
 async function loadData(){
   if (DEMO) return normalize(store.get(DEMO_KEY, { entries: [] }));
-  const r = await fetch(API + CONFIG.BIN_ID + "/latest", {
+  // Zufalls-Parameter verhindert, dass Safari (iPad/iPhone) einen alten Stand aus dem Cache liefert
+  const r = await fetch(API + CONFIG.BIN_ID + "/latest?nocache=" + Date.now() + Math.random().toString(36).slice(2, 6), {
     headers: { "X-Access-Key": CONFIG.ACCESS_KEY, "X-Bin-Meta": "false" },
     cache: "no-store"
   });
