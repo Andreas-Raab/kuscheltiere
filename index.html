@@ -150,6 +150,9 @@
          background:var(--text);color:#fff;padding:11px 18px;border-radius:999px;font-size:15px;transition:.25s;z-index:50;max-width:calc(100vw - 32px);text-align:center}
   .toast.show{opacity:1;transform:translate(-50%,0)}
   .toast.error{background:var(--accent-dark)}
+  .toast.has-action{pointer-events:auto;display:flex;align-items:center;gap:14px;padding:8px 8px 8px 18px}
+  .toast.has-action span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .toast button{flex:none;background:#fff;color:var(--accent-dark);padding:6px 14px;font-size:14px}
 
   footer{text-align:center;color:var(--muted);font-size:13px;margin-top:40px}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -210,7 +213,7 @@
   </div>
   <div id="list" class="grid" aria-live="polite"></div>
 
-  <footer>Deine eigenen Einträge kannst du auf diesem Gerät jederzeit bearbeiten oder löschen.</footer>
+  <footer>Löschen kann jeder. Bearbeiten und Foto hinzufügen geht auf dem Gerät, auf dem das Kuscheltier eingetragen wurde.</footer>
 </div>
 
 <!-- Bearbeiten -->
@@ -251,9 +254,9 @@
    EINSTELLUNGEN – hier deine jsonbin-Daten eintragen
    ============================================================ */
 const CONFIG = {
-  BIN_ID:     "6ad88c75ffd5d160537ee77a",   // z. B. "6716a1b2e41b4d34e4a8c123"
-  ACCESS_KEY: "$2a$10$2MUfGYXM803e1W.j9elqz.7vyqtmU/l/y6meX1WG1wUtbjR8Cp596",   // Access Key mit Rechten "Read" + "Update" (NICHT den Master Key!)
-  IMGBB_KEY:  "8fea00d09e84060ff25c661835f1e8bd",   // API-Key von api.imgbb.com – nötig für "Foto aufnehmen"
+  BIN_ID:     "",   // z. B. "6716a1b2e41b4d34e4a8c123"
+  ACCESS_KEY: "",   // Access Key mit Rechten "Read" + "Update" (NICHT den Master Key!)
+  IMGBB_KEY:  "",   // API-Key von api.imgbb.com – nötig für "Foto aufnehmen"
   TITLE:      "Kuscheltier-Liste",
   SUBTITLE:   "Trag den Namen deines Kuscheltiers ein – gern mit Foto!",
   POLL_SECONDS: 30  // wie oft die Liste automatisch aktualisiert wird
@@ -308,10 +311,17 @@ function ago(ts){
   return new Date(ts).toLocaleDateString("de-DE", { day:"numeric", month:"long" });
 }
 let toastT;
-function toast(msg, isError){
+function toast(msg, isError, action){
   const t = $("#toast");
-  t.textContent = msg; t.className = "toast show" + (isError ? " error" : "");
-  clearTimeout(toastT); toastT = setTimeout(() => t.className = "toast", isError ? 5200 : 2600);
+  t.textContent = ""; const m = document.createElement("span"); m.textContent = msg; t.appendChild(m);
+  t.className = "toast show" + (isError ? " error" : "") + (action ? " has-action" : "");
+  if (action){
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = action.label;
+    b.onclick = () => { clearTimeout(toastT); t.className = "toast"; action.fn(); };
+    t.appendChild(b);
+  }
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = "toast", action ? 7000 : isError ? 5200 : 2600);
 }
 
 /* ---------- Bild-Links aufbereiten ---------- */
@@ -501,7 +511,7 @@ function render(){
       <div class="meta">
         <div class="name">${esc(e.name)}</div>
         <div class="when">${e.updated && e.updated - e.created > 60000 ? "bearbeitet " + ago(e.updated) : "eingetragen " + ago(e.created)}</div>
-        ${mine ? `<div class="own">${!e.photo && CAN_CAM ? `<button class="btn-primary wide" data-addphoto="${esc(e.id)}">📷 Foto hinzufügen</button>` : ""}<button class="btn-ghost" data-edit="${esc(e.id)}">Bearbeiten</button><button class="btn-del" data-del="${esc(e.id)}">Löschen</button></div>` : ""}
+        <div class="own">${mine && !e.photo && CAN_CAM ? `<button class="btn-primary wide" data-addphoto="${esc(e.id)}">📷 Foto hinzufügen</button>` : ""}${mine ? `<button class="btn-ghost" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}<button class="btn-del" data-del="${esc(e.id)}">Löschen</button></div>
       </div>
     </article>`;
   }).join("");
@@ -612,13 +622,25 @@ $("#editForm").addEventListener("submit", e => {
 
 function removeEntry(id, btn){
   const entry = state.entries.find(x => x.id === id);
-  if (!entry || !isMine(entry)) return;
-  if (!confirm(`Eintrag „${entry.name}“ wirklich löschen?`)) return;
+  if (!entry) return;
+  if (!confirm(`„${entry.name}“ wirklich löschen?`)) return;
   withBusy(btn, "…", async () => {
-    await mutate(d => { d.entries = d.entries.filter(y => !(y.id === id && ownHash[id] === y.owner)); });
-    const tokens = store.get(TOKEN_KEY, {}); delete tokens[id]; store.set(TOKEN_KEY, tokens);
-    toast("Eintrag gelöscht.");
+    let removed = null;
+    await mutate(d => {
+      removed = d.entries.find(y => y.id === id) || null;
+      d.entries = d.entries.filter(y => y.id !== id);
+    });
+    toast(`„${entry.name}“ gelöscht.`, false, removed ? { label: "Rückgängig", fn: () => restoreEntry(removed) } : null);
   });
+}
+async function restoreEntry(entry){
+  if (busy) return;
+  busy = true;
+  try{
+    await mutate(d => { if (!d.entries.some(y => y.id === entry.id)) d.entries.push(entry); });
+    toast(`„${entry.name}“ ist wieder da.`);
+  }catch(err){ toast(err.message || "Wiederherstellen hat nicht geklappt.", true); }
+  finally{ busy = false; }
 }
 
 function openView(id){
