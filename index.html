@@ -213,7 +213,7 @@
   </div>
   <div id="list" class="grid" aria-live="polite"></div>
 
-  <footer>Löschen kann jeder. Bearbeiten und Foto hinzufügen geht auf dem Gerät, auf dem das Kuscheltier eingetragen wurde.</footer>
+  <footer>Jeder kann alle Kuscheltiere bearbeiten, ein Foto hinzufügen oder löschen.</footer>
 </div>
 
 <!-- Bearbeiten -->
@@ -254,9 +254,9 @@
    EINSTELLUNGEN – hier deine jsonbin-Daten eintragen
    ============================================================ */
 const CONFIG = {
-  BIN_ID:     "6ad88c75ffd5d160537ee77a",   // z. B. "6716a1b2e41b4d34e4a8c123"
-  ACCESS_KEY: "$2a$10$2MUfGYXM803e1W.j9elqz.7vyqtmU/l/y6meX1WG1wUtbjR8Cp596",   // Access Key mit Rechten "Read" + "Update" (NICHT den Master Key!)
-  IMGBB_KEY:  "8fea00d09e84060ff25c661835f1e8bd",   // API-Key von api.imgbb.com – nötig für "Foto aufnehmen"
+  BIN_ID:     "",   // z. B. "6716a1b2e41b4d34e4a8c123"
+  ACCESS_KEY: "",   // Access Key mit Rechten "Read" + "Update" (NICHT den Master Key!)
+  IMGBB_KEY:  "",   // API-Key von api.imgbb.com – nötig für "Foto aufnehmen"
   TITLE:      "Kuscheltier-Liste",
   SUBTITLE:   "Trag den Namen deines Kuscheltiers ein – gern mit Foto!",
   POLL_SECONDS: 30  // wie oft die Liste automatisch aktualisiert wird
@@ -511,7 +511,7 @@ function render(){
       <div class="meta">
         <div class="name">${esc(e.name)}</div>
         <div class="when">${e.updated && e.updated - e.created > 60000 ? "bearbeitet " + ago(e.updated) : "eingetragen " + ago(e.created)}</div>
-        <div class="own">${mine && !e.photo && CAN_CAM ? `<button class="btn-primary wide" data-addphoto="${esc(e.id)}">📷 Foto hinzufügen</button>` : ""}${mine ? `<button class="btn-ghost" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}<button class="btn-del" data-del="${esc(e.id)}">Löschen</button></div>
+        <div class="own">${!e.photo && CAN_CAM ? `<button class="btn-primary wide" data-addphoto="${esc(e.id)}">📷 Foto hinzufügen</button>` : ""}<button class="btn-ghost" data-edit="${esc(e.id)}">Bearbeiten</button><button class="btn-del" data-del="${esc(e.id)}">Löschen</button></div>
       </div>
     </article>`;
   }).join("");
@@ -593,7 +593,7 @@ $("#list").addEventListener("click", e => {
 
 function openEdit(id){
   const entry = state.entries.find(x => x.id === id);
-  if (!entry || !isMine(entry)) return;
+  if (!entry) return;
   editingId = id;
   $("#editName").value = entry.name;
   $("#editPhoto").value = entry.photo || "";
@@ -612,7 +612,7 @@ $("#editForm").addEventListener("submit", e => {
     let found = true;
     await mutate(d => {
       const x = d.entries.find(y => y.id === id);
-      if (!x || ownHash[id] !== x.owner){ found = false; return; }
+      if (!x){ found = false; return; }
       x.name = name; x.photo = photo; x.updated = Date.now();
     });
     $("#editDlg").close();
