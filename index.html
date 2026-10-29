@@ -230,18 +230,8 @@
           <div class="pick">
           <button type="button" class="btn-cam">📷 Foto aufnehmen oder auswählen</button>
           <input type="file" accept="image/*" hidden>
-          <div class="or">oder Bild-Link einfügen</div>
-          <input type="url" id="photo" inputmode="url" placeholder="https://…">
+          <input type="url" id="photo" hidden>
           <div class="preview" id="preview"><div class="spin"></div><img alt=""><span></span></div>
-          <details class="help">
-            <summary>Wie bekomme ich einen Bild-Link?</summary>
-            <ul>
-              <li><b>Am einfachsten:</b> Foto bei <b>imgbb.com</b> hochladen (ohne Anmeldung) und den <b>„Direktlink“</b> kopieren.</li>
-              <li><b>Dropbox:</b> Freigabelink einfügen – wird automatisch passend umgewandelt.</li>
-              <li><b>Google Drive:</b> Datei für „Jeder mit dem Link“ freigeben und den Link einfügen.</li>
-              <li>Bild im Internet: Rechtsklick (bzw. lange drücken) → „Bildadresse kopieren“.</li>
-            </ul>
-          </details>
           </div>
         </div>
       </div>
@@ -286,8 +276,7 @@
     <div class="pick">
     <button type="button" class="btn-cam">📷 Foto aufnehmen oder auswählen</button>
           <input type="file" accept="image/*" hidden>
-          <div class="or">oder Bild-Link einfügen</div>
-          <input type="url" id="editPhoto" inputmode="url" placeholder="https://…">
+          <input type="url" id="editPhoto" hidden>
     <div class="preview" id="editPreview"><div class="spin"></div><img alt=""><span></span></div>
     </div>
     </div>
@@ -438,7 +427,7 @@ async function shrink(file, max){
   } finally { URL.revokeObjectURL(url); }
 }
 async function uploadPhoto(file){
-  if (DEMO) return (await shrink(file, 700)).toDataURL("image/jpeg", 0.8);
+  if (DEMO) return { url: (await shrink(file, 700)).toDataURL("image/jpeg", 0.8), thumb: "" };
   const canvas = await shrink(file, 1280);
   const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.85));
   const fd = new FormData();
@@ -449,17 +438,17 @@ async function uploadPhoto(file){
   catch(e){ throw new Error("Hochladen fehlgeschlagen – bitte Internetverbindung prüfen."); }
   const d = await r.json().catch(() => ({}));
   if (!r.ok || !d.data) throw new Error("Hochladen fehlgeschlagen" + (d.error && d.error.message ? ": " + d.error.message : "."));
-  return d.data.url || d.data.display_url;
+  const url = d.data.url || d.data.display_url;
+  const thumb = (d.data.medium && d.data.medium.url) || "";   // 640-px-Version für die Karten
+  return { url, thumb };
 }
 
 function bindPreview(input, box){
   const img = box.querySelector("img"), txt = box.querySelector("span");
   const field = input.closest(".photo-field"), big = field.querySelector(".chosen img");
+  const file = field.querySelector('input[type="file"]');
   let t;
-  field.querySelector('[data-act="change"]').addEventListener("click", () => {
-    field.classList.remove("has-img"); box.classList.remove("show");
-    input.focus(); input.select();
-  });
+  field.querySelector('[data-act="change"]').addEventListener("click", () => file.click());
   field.querySelector('[data-act="remove"]').addEventListener("click", () => {
     input.value = ""; input.dataset.ok = ""; big.removeAttribute("src");
     field.classList.remove("has-img"); box.classList.remove("show");
@@ -484,7 +473,7 @@ function bindPreview(input, box){
   input.addEventListener("paste", () => { clearTimeout(t); t = setTimeout(run, 50); });
   input._runPreview = run;
 
-  const camBtn = field.querySelector(".btn-cam"), file = field.querySelector('input[type="file"]');
+  const camBtn = field.querySelector(".btn-cam");
   camBtn.addEventListener("click", () => file.click());
   file.addEventListener("change", async () => {
     const f = file.files && file.files[0];
@@ -494,7 +483,8 @@ function bindPreview(input, box){
     box.classList.remove("bad"); box.classList.add("show", "loading");
     img.removeAttribute("src"); txt.textContent = "Foto wird hochgeladen …";
     try{
-      input.value = await uploadPhoto(f);
+      const up = await uploadPhoto(f);
+      input.value = up.url; input.dataset.thumbFor = up.url; input.dataset.thumb = up.thumb;
       box.classList.remove("loading");
       run();
     }catch(err){
@@ -533,10 +523,19 @@ function guessArt(name){
   return best;
 }
 
+// Kleine 640-px-Versionen der bereits hochgeladenen ImgBB-Fotos (aus dem ImgBB-Konto ausgelesen)
+const KNOWN_THUMBS = {"NnnxRFqn":"M55ndgH5","GvGb8cbP":"Y7Jq1pqj","hJw1WPNp":"JwgF7fTX","JwsP2XXB":"67W5b66n","TxfB68xH":"q3SMKs3R","ccPqS99B":"GvXm4DD6","sJ5Wq5Pm":"0VBsrBXD","hFjwmCHx":"b5ZDK7Lj","4n0947Dv":"9kdzyNfK","Bmf7wRQ":"Mbgj9Lt","9mPW8dgR":"vC9kwMq2","9mW87kKy":"wZ40fFGp","0jcNVd84":"JRKLFM06","spHMZZ5r":"FkVjFFst","MkY4VKLk":"Swh8nHpw","KcBRqwRM":"mrd1q81L","zVpT3z5j":"Xx1rnq4N","GQcxgrf1":"pjJ0Ck6s","XxyzfsRp":"DfG7PC2k","hx9nVrVF":"9mgfWBWH","3ymntkfS":"tMp9y3ZY","wZ2nqbVV":"SDZkg1bb","cSbgh3Pj":"VcHjY9ds","JjZ58syG":"PGkwJ69P","ycVsZkpd":"rRvyzp3F","Rk4b2rdd":"zTHxs9DD","bjpxw3Pv":"NgwXD3sN","cccckjfM":"fYYYqs6B","8gp4wnZv":"HTspyL8w","fV7R2BQ2":"mr7sG1SG","gZ8tnXR7":"zVgPkL45","CKpHFnZK":"qYLrwRfY","35pp3CFd":"BHyypC63","v4dYK93F":"F4YVjp5r","TDPLyv44":"XfF8H277","kszzVCY1":"Vcbb04Xm","5hcXsSGK":"zVfWPBQ6","m50yPB67":"TM10NTm5","XkNR1b54":"n8ZJ9b10","ksXYvWd8":"21dXHfbt","0pQ3NfpQ":"FkntvBkn","d4c0X8XY":"ZzJ6vqvD","SCL6m11":"b9f6vyy","DPNm2v7n":"fVbZwyC7","YT40xGQ0":"vvCXS8qX","5ZhgyZC":"JZjw4Z8","ymGbVCJg":"zWj0NgwP","5xhpzqJz":"x8q9cVrc","s9CG2D7g":"gZdp3XYr","CpctSYSL":"BHpPYQYk","7JGjkrM4":"3y04RS6z","LdnH5ddx":"pjJ5yjjf","r2K7Z2nn":"xqKCMqVV","HDhnB8GY":"nsPz6JQf","5WxPnsVS":"N6nMmWzJ","LKcQSgK":"2JC8qMJ","gLGGb3C5":"1t33YLxD","4ZZ7wBNM":"MDDsyqNp","5g812Tgf":"1tq0bZtw","ds68jMdH":"5XvbG4NJ","TDsFTNQW":"Y4xqWV50","3mHt8kBj":"fd7mKQ4y","JjZtgngP":"DfdWT4Tn","n8bp0DGB":"gF3Y7D2d","chTHvWw3":"m5zwBn0T","TBXX1Ygj":"gM11dmRq","yB4xdLQ6":"0VszmPGC","hRKgnpwP":"6R4yp6L3","C3fXnDZ6":"MxmjRQ4f","tP3jpg3j":"5x2phm2p","HDB1ZkGY":"27WmJfcP","k6x7WHfD":"prx7908K","bgLDHw80":"27PH8Vf9","N2vgymPv":"4RqwVYGq","7xfBfQdw":"gb2Q2dL5","rKZkgBC0":"Ps5xR27j","RGN8rG0j":"zWFd9WR6","VpxPtWV6":"S7c9PXNS","p7xDtms":"FrKvSPf","TJcb73k":"01qF6bc","gMcXw1rV":"Lzsq6w05","1JsLThz4":"LhQ81bNs","VWpvKfw2":"mCFHxfN6","vvqwV66Y":"0V2DmRRt","SDt5w6hk":"JWvmjcfY","3mjKx3gJ":"HTbZcS5J","QBKvG0Y":"KZrxHnV","Fqm50Dmy":"mFb9Xcb2","Y4CwqxdN":"ZRj7k0gf","tPMRvLdb":"5xWZSK75","Kz6Rr76M":"S7NW30Nh","wFxK3rXm":"FLjBNqMT","HfMn5KnY":"dw3G8fG6","HTLqYmkn":"zVWZbK0G","mVLx1hnj":"YFzrYf5C","9HDjBRmh":"zVMwCKWF","VcmVfjjR":"YFZ2HRRm","jvzwF6VF":"qMCgwy0w","jd5BJ6w":"NX3QTVN","QFqX3DfF":"fYKQzD2Y","bj3T0Yfj":"twhgGndw","FkHGfd5k":"spWLDXKp","k2738y3h":"LdFQtPQC","VYXDk2sB":"PGB4VwdC","PG3Csx7Q":"b5qdj1SJ","gZnrv9Qb":"jkp8Vfq9","nsYgnHYR":"bgCW2SC7","ycLKFm7k":"LX4BdDHg","qYX3RHbV":"B2d5gh8F","PzszqrKj":"G3f3zdyp","YFhkXKqW":"8L95bRSB","bMMGCbpZ":"yccxZ4L1","JWktBSwb":"HLg4F9fM"};
+function knownThumb(url){
+  const m = /^https:\/\/i\.ibb\.co\/([^/]+)\/kuscheltier\.jpg$/.exec(url || "");
+  return m && KNOWN_THUMBS[m[1]] ? "https://i.ibb.co/" + KNOWN_THUMBS[m[1]] + "/kuscheltier.jpg" : "";
+}
 function normalize(d){
   d = d || {};
   const entries = (Array.isArray(d.entries) ? d.entries : []).filter(x => x && x.id && x.name);
-  for (const e of entries){ if (!e.t || typeof e.t !== "object" || Array.isArray(e.t)) e.t = {}; }
+  for (const e of entries){
+    if (!e.t || typeof e.t !== "object" || Array.isArray(e.t)) e.t = {};
+    if (!e.thumb && e.photo){ const k = knownThumb(e.photo); if (k) e.thumb = k; }
+  }
   let traits = Array.isArray(d.traits)
     ? d.traits.filter(c => c && c.id && c.name && Array.isArray(c.options)).map(c => ({ id: c.id, name: c.name, options: c.options.filter(o => o && o.id && o.name) }))
     : null;
@@ -665,10 +664,19 @@ const BEAR = '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="#C08C80"><c
 let filter = { q: "", t: {} };
 let lastListKey = "";
 
+// Bild lädt nicht: erst große Version, dann nach kurzer Pause nochmal, dann Platzhalter
+function imgFail(img){
+  const n = +(img.dataset.tries || 0);
+  img.dataset.tries = n + 1;
+  const full = img.dataset.full || "";
+  if (n === 0 && full && img.src !== full){ img.src = full; return; }
+  if (n <= 1 && full){ setTimeout(() => { if (img.isConnected) img.src = full + (full.includes("?") ? "&" : "?") + "retry=" + Date.now(); }, 4000); return; }
+  img.replaceWith(Object.assign(document.createElement("div"), { className: "ph", innerHTML: BEAR }));
+}
 function card(e){
   const mine = isMine(e);
   const photo = e.photo
-    ? `<img src="${esc(e.photo)}" alt="Foto von ${esc(e.name)}" loading="lazy" referrerpolicy="no-referrer" data-view="${esc(e.id)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',innerHTML:BEAR}))">`
+    ? `<img src="${esc(e.thumb || e.photo)}" data-full="${esc(e.photo)}" alt="Foto von ${esc(e.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-view="${esc(e.id)}" onerror="imgFail(this)">`
     : `<div class="ph">${BEAR}</div>`;
   const chips = orderedCats().filter(c => c.id !== TIERART).map(c => {
     const o = getOpt(c.id, e.t[c.id]);
@@ -878,6 +886,11 @@ async function withBusy(btn, label, fn){
   catch(err){ toast(err.message || "Das hat leider nicht geklappt.", true); }
   finally{ busy = false; btn.disabled = false; btn.textContent = old; }
 }
+function thumbFor(input, photo, oldEntry){
+  if (photo && input.dataset.thumbFor === photo) return input.dataset.thumb || "";
+  if (oldEntry && oldEntry.photo === photo) return oldEntry.thumb || "";
+  return knownThumb(photo);
+}
 function readPhoto(input){
   if (input.dataset.uploading === "1") throw new Error("Einen Moment – das Foto wird noch hochgeladen.");
   const v = normalizePhoto(input.value);
@@ -898,8 +911,9 @@ $("#addForm").addEventListener("submit", e => {
     ownHash[id] = owner;
     const now = Date.now();
     const t = readTraits($("#addTraits"));
-    await mutate(d => d.entries.push({ id, name, photo, t, created: now, updated: now, owner }));
-    $("#addForm").reset(); setTraits($("#addTraits"), {}); $("#preview").classList.remove("show"); $("#photo").dataset.ok = ""; $("#photoField").classList.remove("has-img");
+    const thumb = thumbFor($("#photo"), photo, null);
+    await mutate(d => d.entries.push({ id, name, photo, thumb, t, created: now, updated: now, owner }));
+    $("#addForm").reset(); setTraits($("#addTraits"), {}); $("#photo").dataset.thumbFor = ""; $("#preview").classList.remove("show"); $("#photo").dataset.ok = ""; $("#photoField").classList.remove("has-img");
     toast("Eingetragen! 🎉");
   });
 });
@@ -948,6 +962,7 @@ $("#editForm").addEventListener("submit", e => {
     await mutate(d => {
       const x = d.entries.find(y => y.id === id);
       if (!x){ found = false; return; }
+      x.thumb = thumbFor($("#editPhoto"), photo, x);
       x.name = name; x.photo = photo; x.t = t; x.updated = Date.now();
     });
     $("#editDlg").close();
