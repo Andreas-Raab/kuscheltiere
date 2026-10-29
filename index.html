@@ -104,6 +104,8 @@
   .preview img{width:64px;height:64px;object-fit:cover;border-radius:10px;background:#fff}
   .preview span{font-size:13.5px}
   .preview.bad{background:#FDE3E3}
+  .open-add{text-align:center;margin-top:22px}
+  .open-add .btn{padding:14px 26px;font-size:17px}
   .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap}
   button{font:inherit;font-weight:700;border:0;cursor:pointer;border-radius:999px;transition:transform .08s, background .15s, opacity .15s}
   button:active{transform:scale(.97)}
@@ -216,7 +218,8 @@
     </div>
   </header>
 
-  <section class="card form" aria-labelledby="addTitle">
+  <div class="open-add"><button type="button" class="btn btn-primary" id="openAdd">➕ Neues Kuscheltier eintragen</button></div>
+  <section class="card form" id="addBox" aria-labelledby="addTitle" hidden>
     <h2 id="addTitle">Kuscheltier eintragen</h2>
     <form id="addForm" autocomplete="off">
       <div class="row">
@@ -237,6 +240,7 @@
       </div>
       <div class="traits" id="addTraits"></div>
       <div class="actions">
+        <button type="button" class="btn btn-ghost" id="addCancel">Abbrechen</button>
         <button type="submit" class="btn btn-primary" id="addBtn">Eintragen</button>
       </div>
     </form>
@@ -914,8 +918,27 @@ $("#addForm").addEventListener("submit", e => {
     const thumb = thumbFor($("#photo"), photo, null);
     await mutate(d => d.entries.push({ id, name, photo, thumb, t, created: now, updated: now, owner }));
     $("#addForm").reset(); setTraits($("#addTraits"), {}); $("#photo").dataset.thumbFor = ""; $("#preview").classList.remove("show"); $("#photo").dataset.ok = ""; $("#photoField").classList.remove("has-img");
+    closeAdd();
     toast("Eingetragen! 🎉");
   });
+});
+
+/* ---------- Eintragen-Box ein-/ausblenden ---------- */
+function openAdd(){
+  $("#addBox").hidden = false; $(".open-add").hidden = true;
+  $("#addBox").scrollIntoView({ behavior: "smooth", block: "start" });
+  setTimeout(() => $("#name").focus({ preventScroll: true }), 250);
+}
+function closeAdd(){
+  $("#addForm").reset(); setTraits($("#addTraits"), {});
+  $("#photo").value = ""; $("#photo").dataset.ok = ""; $("#photo").dataset.thumbFor = "";
+  $("#preview").classList.remove("show"); $("#photoField").classList.remove("has-img");
+  $("#addBox").hidden = true; $(".open-add").hidden = false;
+}
+$("#openAdd").addEventListener("click", openAdd);
+$("#addCancel").addEventListener("click", () => {
+  if (($("#name").value.trim() || $("#photo").value) && !confirm("Eingaben verwerfen?")) return;
+  closeAdd();
 });
 
 /* ---------- Bearbeiten / Löschen / Ansehen ---------- */
